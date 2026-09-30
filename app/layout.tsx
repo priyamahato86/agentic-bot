@@ -1,4 +1,4 @@
-import { AuthProvider } from "@/components/session-provider";
+import Provider from "./provider";
 import "./globals.css";
 import type { Metadata } from "next";
 
@@ -15,7 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body style={{ margin: 0, padding: 0 }}>
-        <AuthProvider>{children}</AuthProvider>
+        <Provider>{children}</Provider>
       </body>
     </html>
   );
