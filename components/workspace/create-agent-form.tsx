@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Check, Shuffle } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AGENTS_UPDATED_EVENT } from "@/components/workspace/agent-list";
 import { PageHeader } from "@/components/workspace/page-header";
 import { getAgentAvatar } from "@/lib/agent-avatar";
 
@@ -17,12 +19,43 @@ export function CreateAgentForm() {
   const [seed, setSeed] = useState("orbit");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const shuffleAvatar = () => setSeed(Math.random().toString(36).slice(2, 10));
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // TODO: save the agent ({ name, description, image: getAgentAvatar(seed) })
+    if (submitting) return;
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim(),
+          agentImage: getAgentAvatar(seed),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError(data.error ?? "Failed to create agent");
+        return;
+      }
+
+      window.dispatchEvent(new Event(AGENTS_UPDATED_EVENT));
+      router.push("/workspace");
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -82,6 +115,12 @@ export function CreateAgentForm() {
             />
           </div>
 
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+
           <div className="flex justify-end gap-3 border-t pt-5">
             <Button
               variant="outline"
@@ -91,9 +130,13 @@ export function CreateAgentForm() {
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!name.trim()} className="h-10 gap-2 px-6">
+            <Button
+              type="submit"
+              disabled={!name.trim() || submitting}
+              className="h-10 gap-2 px-6"
+            >
               <Check className="size-4" />
-              Create Agent
+              {submitting ? "Creating..." : "Create Agent"}
             </Button>
           </div>
         </form>

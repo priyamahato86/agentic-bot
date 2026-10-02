@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -10,10 +12,36 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { placeholderAgents } from "@/lib/placeholder-agents";
+
+// Dispatch this on window after creating/updating an agent to reload the list.
+export const AGENTS_UPDATED_EVENT = "agents:updated";
+
+type SidebarAgent = {
+  id: number;
+  name: string;
+  agentImage: string | null;
+};
 
 export function AgentList() {
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const pathname = usePathname();
+  const [agents, setAgents] = useState<SidebarAgent[]>([]);
+
+  const loadAgents = useCallback(async () => {
+    try {
+      const res = await fetch("/api/agent", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setAgents(data.agents ?? []);
+    } catch (error) {
+      console.error("Failed to load agents:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAgents();
+    window.addEventListener(AGENTS_UPDATED_EVENT, loadAgents);
+    return () => window.removeEventListener(AGENTS_UPDATED_EVENT, loadAgents);
+  }, [loadAgents]);
 
   return (
     <SidebarGroup>
@@ -22,16 +50,16 @@ export function AgentList() {
       </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {placeholderAgents.map((agent) => (
+          {agents.map((agent) => (
             <SidebarMenuItem key={agent.id}>
               <SidebarMenuButton
                 className="h-10 gap-3 font-medium"
-                isActive={activeId === agent.id}
-                onClick={() => setActiveId(agent.id)}
+                isActive={pathname === `/workspace/agent/${agent.id}`}
+                render={<Link href={`/workspace/agent/${agent.id}`} />}
               >
                 <Avatar className="size-6 ring-2 ring-background">
-                  <AvatarImage src={agent.image} alt={agent.name} />
-                  <AvatarFallback>{agent.name[0]}</AvatarFallback>
+                  <AvatarImage src={agent.agentImage ?? undefined} alt={agent.name} />
+                  <AvatarFallback>{agent.name[0]?.toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <span className="truncate">{agent.name}</span>
               </SidebarMenuButton>
