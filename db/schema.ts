@@ -20,6 +20,7 @@ export const AgentConfig = pgTable("agentConfig", {
   name: varchar("name").notNull(),
   description: text("description"),
   agentImage: text("agentImage"),
+  instructions: text("instructions"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   userEmail: text("userEmail")
     .notNull()

@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { and, eq } from "drizzle-orm";
 import { authOptions } from "@/lib/auth";
 import { db, AgentConfig } from "@/db";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AgentConfigPanel } from "@/components/workspace/agent-config-panel";
+import { ChatPanel } from "@/components/workspace/chat-panel";
 import { PageHeader } from "@/components/workspace/page-header";
 
 export default async function AgentPage({
@@ -25,20 +26,21 @@ export default async function AgentPage({
   if (!agent) notFound();
 
   return (
-    <>
-      <PageHeader title={agent.name} />
-      <main className="flex items-start gap-4 p-6">
-        <Avatar className="size-16 border shadow-sm">
-          <AvatarImage src={agent.agentImage ?? undefined} alt={agent.name} />
-          <AvatarFallback>{agent.name[0]?.toUpperCase()}</AvatarFallback>
-        </Avatar>
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">{agent.name}</h2>
-          {agent.description && (
-            <p className="mt-1 text-sm text-muted-foreground">{agent.description}</p>
-          )}
-        </div>
-      </main>
-    </>
+    <div className="flex min-h-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <PageHeader title={agent.name}>
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="size-2 rounded-full bg-emerald-500" />
+            Active
+          </span>
+        </PageHeader>
+        <ChatPanel
+          agentName={agent.name}
+          agentImage={agent.agentImage}
+          agentDescription={agent.description}
+        />
+      </div>
+      <AgentConfigPanel agent={agent} />
+    </div>
   );
 }
