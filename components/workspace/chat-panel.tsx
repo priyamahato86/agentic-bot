@@ -10,9 +10,11 @@ type Message = {
   role: "user" | "agent";
   content: string;
   time: string;
+  error?: boolean;
 };
 
 type ChatPanelProps = {
+  agentId: number;
   agentName: string;
   agentImage?: string | null;
   agentDescription?: string | null;
@@ -21,25 +23,63 @@ type ChatPanelProps = {
 const formatTime = () =>
   new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-export function ChatPanel({ agentName, agentImage, agentDescription }: ChatPanelProps) {
+export function ChatPanel({ agentId, agentName, agentImage, agentDescription }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, loading]);
 
-  const send = () => {
+  const send = async () => {
     const content = input.trim();
-    if (!content) return;
-    setMessages((prev) => [
-      ...prev,
-      { id: Date.now(), role: "user", content, time: formatTime() },
-    ]);
+    if (!content || loading) return;
+
+    const userMessage: Message = { id: Date.now(), role: "user", content, time: formatTime() };
+    const history = [...messages, userMessage];
+    setMessages(history);
     setInput("");
+    setLoading(true);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
+
+    let reply: string;
+    try {
+      const res = await fetch("/api/agent/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentId,
+          messages: history
+            .filter((m) => !m.error)
+            .map(({ role, content }) => ({ role, content })),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.reply !== "string") {
+        throw new Error(data.error || "Failed to get a response");
+      }
+      reply = data.reply;
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now(), role: "agent", content: reply, time: formatTime() },
+      ]);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          role: "agent",
+          content: err instanceof Error ? err.message : "Something went wrong",
+          time: formatTime(),
+          error: true,
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const agentAvatar = (className?: string) => (
@@ -77,13 +117,30 @@ export function ChatPanel({ agentName, agentImage, agentDescription }: ChatPanel
                       <span className="font-semibold">{agentName}</span>
                       <span className="text-muted-foreground">{m.time}</span>
                     </div>
-                    <div className="rounded-2xl rounded-tl-md border bg-background px-4 py-2.5 text-sm shadow-sm">
+                    <div
+                      className={cn(
+                        "rounded-2xl rounded-tl-md border bg-background px-4 py-2.5 text-sm shadow-sm",
+                        m.error && "border-destructive/40 text-destructive",
+                      )}
+                    >
                       <p className="whitespace-pre-wrap break-words">{m.content}</p>
                     </div>
                   </div>
                 </div>
               ),
             )
+          )}
+          {loading && (
+            <div className="flex items-start gap-3">
+              {agentAvatar()}
+              <div className="rounded-2xl rounded-tl-md border bg-background px-4 py-3 shadow-sm">
+                <div className="flex gap-1">
+                  <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
+                  <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
+                  <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground" />
+                </div>
+              </div>
+            </div>
           )}
           <div ref={bottomRef} />
         </div>
@@ -113,7 +170,7 @@ export function ChatPanel({ agentName, agentImage, agentDescription }: ChatPanel
           <button
             type="button"
             onClick={send}
-            disabled={!input.trim()}
+            disabled={!input.trim() || loading}
             aria-label="Send message"
             className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
           >
