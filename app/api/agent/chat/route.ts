@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { and, eq } from "drizzle-orm";
 import { authOptions } from "@/lib/auth";
 import { db, AgentConfig } from "@/db";
+import { getOrCreateAgentSession } from "@/lib/composio/service";
 import { executeAgentChat, type Message } from "@/lib/openai/openai-agent";
 
 export async function POST(req: NextRequest) {
@@ -49,10 +50,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Agent not found" }, { status: 404 });
     }
 
+    const composioSession = await getOrCreateAgentSession(agent, email);
+
     const reply = await executeAgentChat(
       agent.name,
       agent.instructions || "You are a helpful assistant.",
-      messages as Message[]
+      messages as Message[],
+      composioSession
     );
 
     return NextResponse.json({ reply });

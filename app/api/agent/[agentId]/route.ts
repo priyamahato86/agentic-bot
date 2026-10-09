@@ -30,7 +30,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    const { name, description, agentImage, instructions } = (body ?? {}) as Record<
+    const { name, description, agentImage, instructions, tools } = (body ?? {}) as Record<
       string,
       unknown
     >;
@@ -57,9 +57,18 @@ export async function PATCH(
       return NextResponse.json({ error: "Agent image must be a string" }, { status: 400 });
     }
 
+    if (
+      tools !== undefined &&
+      (!Array.isArray(tools) || !tools.every((t) => typeof t === "string" && t.length > 0))
+    ) {
+      return NextResponse.json({ error: "Tools must be an array of tool slugs" }, { status: 400 });
+    }
+
     const [agent] = await db
       .update(AgentConfig)
       .set({
+        // Changing tools invalidates the cached Composio session
+        ...(tools !== undefined && { tools: [...new Set(tools as string[])], composioSessionId: null }),
         name: name.trim(),
         description: description.trim(),
         agentImage,
